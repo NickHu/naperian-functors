@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies          #-}
@@ -119,6 +120,12 @@ instance Show a => Show (Hyper fs a) where
   show (Scalar x) = show x
   show (Prism x)  = show $ toList <$> x
 
+instance Eq a => Eq (Hyper '[] a) where
+  Scalar x == Scalar y = x == y
+
+instance (Eq a, Eq (Hyper fs (f a))) => Eq (Hyper (f ': fs) a) where
+  Prism x == Prism y = x == y
+
 instance Functor (Hyper fs) where
   fmap f (Scalar x) = Scalar (f x)
   fmap f (Prism x)  = Prism ((fmap . fmap) f x)
@@ -145,7 +152,7 @@ instance Shapely '[] where
 
 instance (Dimension f, Shapely fs) => Shapely (f ': fs) where
   hreplicate x    = Prism (hreplicate (areplicate x))
-  hsize (Prism x) = length (toList (first x)) * hsize x
+  hsize (Prism x) = size (first x) * hsize x
 
 first :: (Shapely fs) => Hyper fs a -> a
 first (Scalar x) = x
