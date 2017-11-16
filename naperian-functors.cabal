@@ -22,6 +22,10 @@ flag accelerate
   description: Enable accelerate integration
   default: false
 
+flag mononaperian
+  description: Monotraversable Naperian functors
+  default: false
+
 library
   hs-source-dirs:      src
   exposed-modules:
@@ -37,6 +41,11 @@ library
   if flag(accelerate)
     build-depends: accelerate
     exposed-modules: Data.Naperian.Accelerate
+  if flag(mononaperian)
+    build-depends: mono-traversable
+    exposed-modules:
+      Data.MonoNaperian
+      Data.Naperian.Vector.Unboxed
 
 source-repository head
   type:     git
