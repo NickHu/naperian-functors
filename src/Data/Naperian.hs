@@ -166,6 +166,9 @@ hzipWith f (Prism x)  (Prism y)  = Prism (hzipWith (azipWith f) x y)
 reduceBy :: (a -> a -> a) -> a -> Hyper (f ': fs) a -> Hyper fs a
 reduceBy f e (Prism x) = foldr f e <$> x
 
+reduceBy1 :: (a -> a -> a) -> Hyper (f ': fs) a -> Hyper fs a
+reduceBy1 f (Prism x) = foldr1 f <$> x
+
 -- | Generalized transposition over arbitrary-rank hypercuboids.
 transposeHyper :: Hyper (f ': g ': fs) a -> Hyper (g ': f ': fs) a
 transposeHyper (Prism (Prism x)) = Prism (Prism (transpose <$> x))
