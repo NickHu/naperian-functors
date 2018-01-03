@@ -38,3 +38,4 @@ instance Dimension Pair where size = const 2
 
 type instance IsDimension Pair = 'True
 
+type instance Size Pair = 2

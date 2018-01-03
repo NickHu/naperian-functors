@@ -2,7 +2,9 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE MagicHash             #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
@@ -32,10 +34,13 @@ Some generic operations for working with Naperian types are also provided.
 module Data.Naperian where
 
 import           Control.Applicative (liftA2)
-import           Data.Foldable       (toList)
+import           Data.Ix
 import           Data.Kind           (Constraint, Type)
+import           Data.Type.Bool
+import           GHC.Exts            (IsList (..))
+import           GHC.Prim            (Proxy#, proxy#)
+import           GHC.TypeLits
 import           Language.Haskell.TH hiding (Type)
-import           GHC.TypeLits        (ErrorMessage (..), TypeError)
 import           Prelude             hiding (lookup)
 
 -- | \"'Applicative' zipping\". Synonym for @liftA2@.
@@ -66,7 +71,7 @@ areplicate = pure
 --
 -- A @'Naperian'@ functor @f@ is precisely a functor @f@ such that for any value
 -- of type @f a@, we have a way of finding every single @a@ inside.
-class Functor f => Naperian f where
+class (Functor f, Bounded (Log f), Enum (Log f), Ix (Log f)) => Naperian f where
   {-# MINIMAL lookup, (tabulate | positions) #-}
 
   -- | The \"logarithm\" of @f@. This type represents the 'input' you use to
@@ -75,7 +80,7 @@ class Functor f => Naperian f where
   -- the list. In this case, @'Log' [a] = Int@. If you have a type-bounded
   -- Vector @'Vector' (n :: 'Nat') a@, then @'Log' ('Vector' n)@ is the
   -- range of integers @[0..n-1]@ (represented here as @'Finite' n@.)
-  type Log f
+  type Log f :: Type
 
   -- | Look up an element @a@ inside @f a@. If you read this function type in
   -- English, it says \"if you give me an @f a@, then I will give you a
@@ -177,6 +182,79 @@ instance Shapely '[] where
 instance (Dimension f, Shapely fs) => Shapely (f ': fs) where
   hreplicate x    = Prism (hreplicate (areplicate x))
   hsize (Prism x) = size (first x) * hsize x
+
+-- | The finite set of type-bounded Naturals. A value of type @'Fin' n@ has
+-- exactly @n@ inhabitants, the natural numbers from @[0..n-1]@.
+data Finite :: Nat -> Type where
+  Fin :: Int -> Finite n
+  deriving (Eq, Show, Ord, Ix)
+
+instance KnownNat n => Bounded (Finite n) where
+  minBound = Fin 0
+  maxBound = Fin s
+    where s = fromIntegral (natVal' (proxy# :: Proxy# n))
+
+instance Enum (Finite n) where
+  toEnum = Fin
+  fromEnum (Fin n) = n
+
+-- | Create a type-bounded finite number @'Fin' n@ from a runtime integer,
+-- bounded to a statically known limit. If the input value @x >= n@, then
+-- @'Nothing'@ is returned. Otherwise, returns @'Just' (x :: 'Fin' n)@.
+finite :: forall n. KnownNat n => Int -> Maybe (Finite n)
+finite x = if (x < 0 || x >= y) then Nothing else Just (Fin x)
+  where y = fromIntegral (natVal' (proxy# :: Proxy# n))
+
+-- | Extract the size of a dimension from its type.
+type family Size (f :: Type -> Type) :: Nat
+type instance Size (Hyper '[]) = 1
+type instance Size (Hyper (f ': fs)) = Size f * Size (Hyper fs)
+
+instance Naperian (Hyper '[]) where
+  type Log (Hyper '[]) = Finite 1
+  lookup h _ = head (toList h)
+  positions = Scalar $ Fin 0
+
+instance (Dimension f, Shapely fs,
+          Log (Hyper fs) ~ Finite (Size (Hyper fs)),
+          Naperian (Hyper fs),
+          IsList (f (Finite (Size (Hyper (f ': fs))))),
+          Item (f (Finite (Size (Hyper (f ': fs))))) ~ Finite (Size (Hyper (f ': fs))),
+          KnownNat (Size f),
+          KnownNat (Size f * Size (Hyper fs))
+         ) => Naperian (Hyper (f ': fs)) where
+  type Log (Hyper (f ': fs)) = Finite (Size (Hyper (f ': fs)))
+  lookup h (Fin i) = toList h !! i
+  positions = Prism $ (\(Fin n) -> fromList [ Fin (n*z+i) | i <- [0 .. z-1]])
+                      <$> positions
+    where z = fromIntegral (natVal' (proxy# :: Proxy# (Size f)))
+
+-- an instance of IsList where each dimension along the Hyper is a list nesting
+-- instance IsList (Hyper '[] a) where
+--   type Item (Hyper '[] a) = a
+--   toList (Scalar x) = [x]
+--   fromList = Scalar . head
+--
+-- instance (IsList (f a), Item (f a) ~ a, Dimension f) => IsList (Hyper '[f] a) where
+--   type Item (Hyper '[f] a) = a
+--   toList = toList
+--   fromList = Prism . Scalar . fromList
+--
+-- instance (IsList (f a), Item (f a) ~ a,
+--           IsList (Hyper (g ': fs) [a]),
+--           Dimension f, Dimension g, Shapely fs
+--          ) => IsList (Hyper (f ': g ': fs) a) where
+--   type Item (Hyper (f ': g ': fs) a) = Item (Hyper (g ': fs) [a])
+--   toList (Prism x) = toList $ toList <$> x
+--   fromList = Prism . fmap fromList . fromList
+
+instance (Shapely fs, Naperian (Hyper fs)) => Dimension (Hyper fs) where
+  size = hsize
+
+instance (Naperian f) => IsList (f a) where
+  type Item (f a) = a
+  toList d = lookup d <$> [minBound .. pred maxBound]
+  fromList xs = tabulate (\log -> xs !! fromEnum log)
 
 first :: (Shapely fs) => Hyper fs a -> a
 first (Scalar x) = x

@@ -36,19 +36,6 @@ import           Data.Naperian
 newtype Vector (n :: Nat) a = Vector (V.Vector a)
   deriving (Eq, Show, Ord, Functor, Foldable, Traversable)
 
--- | The finite set of type-bounded Naturals. A value of type @'Fin' n@ has
--- exactly @n@ inhabitants, the natural numbers from @[0..n-1]@.
-data Finite :: Nat -> Type where
-  Fin :: Int -> Finite n
-  deriving (Eq, Show)
-
--- | Create a type-bounded finite number @'Fin' n@ from a runtime integer,
--- bounded to a statically known limit. If the input value @x > n@, then
--- @'Nothing'@ is returned. Otherwise, returns @'Just' (x :: 'Fin' n)@.
-finite :: forall n. KnownNat n => Int -> Maybe (Finite n)
-finite x = if x > y then Nothing else Just (Fin x)
-  where y = fromIntegral (natVal' (proxy# :: Proxy# n))
-
 cons :: a -> Vector n a -> Vector (n + 1) a
 cons x (Vector v) = Vector $ V.cons x v
 
@@ -97,10 +84,10 @@ instance KnownNat n => Applicative (Vector n) where
   pure = Data.Naperian.Vector.replicate
   (<*>) = Data.Naperian.Vector.zipWith ($)
 
-instance KnownNat n => IsList (Vector n a) where
-  type Item (Vector n a) = a
-  fromList xs = fromMaybe (error "list cast to vector of wrong length") $ maybeFromList xs
-  toList = F.toList
+-- instance KnownNat n => IsList (Vector n a) where
+--   type Item (Vector n a) = a
+--   fromList xs = fromMaybe (error "list cast to vector of wrong length") $ maybeFromList xs
+--   toList = F.toList
 
 instance KnownNat n => Naperian (Vector n) where
   type Log (Vector n) = Finite n
@@ -111,4 +98,6 @@ instance KnownNat n => Dimension (Vector n) where
   size = Data.Naperian.Vector.length
 
 type instance IsDimension (Vector n) = 'True
+
+type instance Size (Vector n) = n
 
