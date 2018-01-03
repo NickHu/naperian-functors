@@ -110,3 +110,5 @@ instance KnownNat n => Naperian (Vector n) where
 instance KnownNat n => Dimension (Vector n) where
   size = Data.Naperian.Vector.length
 
+type instance IsDimension (Vector n) = 'True
+

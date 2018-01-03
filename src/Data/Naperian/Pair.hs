@@ -1,5 +1,6 @@
+{-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies      #-}
 
 {-|
 Module      : Data.Naperian.Pair
@@ -18,7 +19,7 @@ position and @True@ indexes the second position.
 
 module Data.Naperian.Pair where
 
-import Data.Naperian
+import           Data.Naperian
 
 data Pair a = P a a
   deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
@@ -30,8 +31,10 @@ instance Applicative Pair where
 instance Naperian Pair where
   type Log Pair = Bool
   lookup (P x _) False = x
-  lookup (P _ y) True = y
+  lookup (P _ y) True  = y
   positions = P False True
 
 instance Dimension Pair where size = const 2
+
+type instance IsDimension Pair = 'True
 

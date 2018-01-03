@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE UndecidableInstances  #-}
@@ -33,6 +34,7 @@ module Data.Naperian where
 import           Control.Applicative (liftA2)
 import           Data.Foldable       (toList)
 import           Data.Kind           (Constraint, Type)
+import           Language.Haskell.TH hiding (Type)
 import           GHC.TypeLits        (ErrorMessage (..), TypeError)
 import           Prelude             hiding (lookup)
 
@@ -96,6 +98,28 @@ transpose = tabulate . fmap tabulate . flip . fmap lookup . lookup
 class (Applicative f, Naperian f, Traversable f) => Dimension f where
   size :: f a -> Int
   size = length . toList
+
+-- | "Data.Naperian.Conversions" can automatically lift values into a @'Hyper'@,
+-- but cannot tell which functors it can collapse; generally, a @Functor f@ as
+-- part of the @'Dimension'@ typeclass should be collapsed, otherwise @f@ should
+-- not be collapsed. For example, we want @toHyper not@ to have type @Hyper '[]
+-- (Bool -> Bool)@ and not @Hyper '[(->) Bool] Bool@.
+--
+-- However, there is no way to encode this defaulting in a
+-- type family. The solution here creates an open type family @IsDimension@
+-- along with some instances for common functors.
+type family IsDimension (f :: Type -> Type) :: Bool
+-- type instance IsDimension ((,) _) = 'False for n-ary tuples
+$(traverse return
+    [TySynInstD ''IsDimension
+      (TySynEqn [iterate (`AppT` WildCardT) (TupleT i) !! (i - 1)]
+                (PromotedT 'False))
+    | i <- [2..62]])
+type instance IsDimension ((->) _) = 'False
+type instance IsDimension (Either _) = 'False
+type instance IsDimension IO = 'False
+type instance IsDimension Maybe = 'False
+type instance IsDimension [] = 'False
 
 dotp :: (Num a, Dimension f) => f a -> f a -> a
 dotp xs ys = sum (azipWith (*) xs ys)
