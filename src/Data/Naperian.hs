@@ -34,6 +34,7 @@ Some generic operations for working with Naperian types are also provided.
 module Data.Naperian where
 
 import           Control.Applicative (liftA2)
+import qualified Data.Foldable as F
 import           Data.Ix
 import           Data.Kind           (Constraint, Type)
 import           Data.Type.Bool
@@ -71,7 +72,7 @@ areplicate = pure
 --
 -- A @'Naperian'@ functor @f@ is precisely a functor @f@ such that for any value
 -- of type @f a@, we have a way of finding every single @a@ inside.
-class (Functor f, Bounded (Log f), Enum (Log f), Ix (Log f)) => Naperian f where
+class Functor f => Naperian f where
   {-# MINIMAL lookup, (tabulate | positions) #-}
 
   -- | The \"logarithm\" of @f@. This type represents the 'input' you use to
@@ -100,9 +101,9 @@ class (Functor f, Bounded (Log f), Enum (Log f), Ix (Log f)) => Naperian f where
 transpose :: (Naperian f, Naperian g) => f (g a) -> g (f a)
 transpose = tabulate . fmap tabulate . flip . fmap lookup . lookup
 
-class (Applicative f, Naperian f, Traversable f) => Dimension f where
+class (Applicative f, Naperian f, Traversable f, Bounded (Log f), Enum (Log f), Ix (Log f)) => Dimension f where
   size :: f a -> Int
-  size = length . toList
+  size = length . F.toList
 
 -- | "Data.Naperian.Conversions" can automatically lift values into a @'Hyper'@,
 -- but cannot tell which functors it can collapse; generally, a @Functor f@ as
@@ -147,7 +148,7 @@ crystal (Prism x) = x
 
 instance Show a => Show (Hyper fs a) where
   show (Scalar x) = show x
-  show (Prism x)  = show $ toList <$> x
+  show (Prism x)  = show $ F.toList <$> x
 
 instance Eq a => Eq (Hyper '[] a) where
   Scalar x == Scalar y = x == y
@@ -212,7 +213,7 @@ type instance Size (Hyper (f ': fs)) = Size f * Size (Hyper fs)
 
 instance Naperian (Hyper '[]) where
   type Log (Hyper '[]) = Finite 1
-  lookup h _ = head (toList h)
+  lookup h _ = head (F.toList h)
   positions = Scalar $ Fin 0
 
 instance (Dimension f, Shapely fs,
@@ -224,7 +225,7 @@ instance (Dimension f, Shapely fs,
           KnownNat (Size f * Size (Hyper fs))
          ) => Naperian (Hyper (f ': fs)) where
   type Log (Hyper (f ': fs)) = Finite (Size (Hyper (f ': fs)))
-  lookup h (Fin i) = toList h !! i
+  lookup h (Fin i) = F.toList h !! i
   positions = Prism $ (\(Fin n) -> fromList [ Fin (n*z+i) | i <- [0 .. z-1]])
                       <$> positions
     where z = fromIntegral (natVal' (proxy# :: Proxy# (Size f)))
@@ -248,17 +249,18 @@ instance (Dimension f, Shapely fs,
 --   toList (Prism x) = toList $ toList <$> x
 --   fromList = Prism . fmap fromList . fromList
 
-instance (Shapely fs, Naperian (Hyper fs)) => Dimension (Hyper fs) where
+instance (Shapely fs, Naperian (Hyper fs),
+          Bounded (Log (Hyper fs)), Enum (Log (Hyper fs)), Ix (Log (Hyper fs))
+         ) => Dimension (Hyper fs) where
   size = hsize
 
-instance (Naperian f) => IsList (f a) where
-  type Item (f a) = a
+instance {-# OVERLAPPABLE #-} (Dimension f, Item (f a) ~ a) => IsList (f a) where
   toList d = lookup d <$> [minBound .. pred maxBound]
   fromList xs = tabulate (\log -> xs !! fromEnum log)
 
 first :: (Shapely fs) => Hyper fs a -> a
 first (Scalar x) = x
-first (Prism x)  = head . toList $ first x
+first (Prism x)  = head . F.toList $ first x
 
 hzipWith :: (a -> b -> c) -> Hyper fs a -> Hyper fs b -> Hyper fs c
 hzipWith f (Scalar x) (Scalar y) = Scalar (f x y)

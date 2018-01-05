@@ -24,7 +24,6 @@ Implemented with @Data.Vector@.
 module Data.Naperian.Vector where
 
 import qualified Data.Foldable as F
-import           Data.Kind     (Type)
 import           Data.Maybe    (fromMaybe)
 import qualified Data.Vector   as V
 import           GHC.Exts      (IsList (..))
@@ -53,6 +52,9 @@ concat (Vector u) = Vector $ V.concat (map unvector $ V.toList u)
 generate :: forall n a. KnownNat n => (Int -> a) -> Vector n a
 generate f = Vector $ V.generate s f
   where s = fromIntegral $ natVal' (proxy# :: Proxy# n) :: Int
+
+sum :: Num a => Vector n a -> a
+sum (Vector v) = V.sum v
 
 tail :: Vector n a -> Vector (n - 1) a
 tail (Vector v) = Vector $ V.tail v
@@ -84,10 +86,10 @@ instance KnownNat n => Applicative (Vector n) where
   pure = Data.Naperian.Vector.replicate
   (<*>) = Data.Naperian.Vector.zipWith ($)
 
--- instance KnownNat n => IsList (Vector n a) where
---   type Item (Vector n a) = a
---   fromList xs = fromMaybe (error "list cast to vector of wrong length") $ maybeFromList xs
---   toList = F.toList
+instance {-# OVERLAPPING #-} KnownNat n => IsList (Vector n a) where
+  type Item (Vector n a) = a
+  fromList xs = fromMaybe (error "list cast to vector of wrong length") $ maybeFromList xs
+  toList = F.toList
 
 instance KnownNat n => Naperian (Vector n) where
   type Log (Vector n) = Finite n
