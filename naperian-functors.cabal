@@ -20,11 +20,11 @@ cabal-version:       >=1.10
 
 flag accelerate
   description: Enable accelerate integration
-  default: false
+  default: False
 
 flag mononaperian
   description: Monotraversable Naperian functors
-  default: false
+  default: False
 
 library
   hs-source-dirs:      src
