@@ -18,6 +18,10 @@ build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
 
+flag accelerate
+  description: Enable accelerate integration
+  default: false
+
 library
   hs-source-dirs:      src
   exposed-modules:
@@ -28,9 +32,11 @@ library
   build-depends:       base >= 4.7 && < 5
                      , ghc-prim
                      , vector
-                     , accelerate
                      , split
   default-language:    Haskell2010
+  if flag(accelerate)
+    build-depends: accelerate
+    exposed-modules: Data.Naperian.Accelerate
 
 source-repository head
   type:     git
