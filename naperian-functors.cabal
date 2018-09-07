@@ -37,6 +37,7 @@ library
                      , ghc-prim
                      , vector
                      , split
+                     , template-haskell
   default-language:    Haskell2010
   if flag(accelerate)
     build-depends: accelerate
